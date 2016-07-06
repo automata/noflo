@@ -356,6 +356,52 @@ describe 'Component traits', ->
         y.disconnect()
         z.disconnect()
 
+    describe 'when sending errors by callback', ->
+      c = null
+      ins = null
+      outs = null
+      errs = null
+      before (done) ->
+        c = new noflo.Component
+        c.inPorts.add 'in',
+          datatype: 'all'
+          required: true
+        c.outPorts.add 'out',
+          datatype: 'all'
+        .add 'error',
+          datatype: 'object'
+        ins = new noflo.internalSocket.createSocket()
+        outs = new noflo.internalSocket.createSocket()
+        errs = new noflo.internalSocket.createSocket()
+        c.inPorts.in.attach ins
+        c.outPorts.out.attach outs
+        c.outPorts.error.attach errs
+        done()
+      it 'should output expected groups on error outport', (done) ->
+        noflo.helpers.WirePattern c,
+          in: 'in',
+          out: 'out',
+          async: true
+          forwardGroups: true
+        , (data, groups, out, callback) ->
+          return callback Error 'Some error'
+        grps = []
+        errs.on 'begingroup', (grp) ->
+          grps.push grp
+        errs.on 'endgroup', ->
+          grps.pop()
+        errs.on 'data', (error) ->
+          console.log 'error', error
+          console.log 'groups', grps
+          chai.expect(grps).to.eql [
+            'g1'
+          ]
+          done()
+        ins.beginGroup 'g1'
+        ins.send 'foobar'
+        ins.endGroup()
+        ins.disconnect()
+
     describe 'when `this` context is important', ->
       c = new noflo.Component
       c.inPorts.add 'x',
